@@ -1,0 +1,106 @@
+version: "3"
+
+services:
+   postgres:
+      image: "postgres:latest"
+      environment:
+         - POSTGRES_PASSWORD=postgres_password
+      # here we can override the  default user, password and databse.
+      # - POSTGRES_USER=user
+      # - POSTGRES_PASSWORD=pwd
+      # - POSTGRES_DB=db
+      # Using a "persistent volume" is neccessary to not loose data when  the Container  shuts down.
+   redis:
+      image: "redis:latest"
+   api:
+      build:
+         # just the name of the Dockerfile, we do not specify any directory or folder
+         dockerfile: Dockerfile.dev
+         # we specify the location of the Dockerfile
+         # the line below says: look in the current working directory, find a folder called "server", and inside there find all the files and folders to build this Image,
+         # and by the way inside of this context is where you are going to also find our Dockerfile as well.
+         context: ./server
+      volumes:
+         # I.e. inside the Container, don't try to override this "node_modules" folder.
+         # don't try to overwrite it, don't try to redirect access to it, just leave that folder as is.
+         - /app/node_modules
+         # I.e. look at the server directory and copy everything inside there
+         # into the /app folder of the Container.
+         #
+         # So, now, any time our application tries to access anything inside of the /app directory
+         # inside the Container, except for the "node_modules" folder,
+         # it is going to essentially get redirected back to the "/server" directory
+         # inside of our current project folder.
+         #
+         # And that is going to make sure that we don't have to rebuild our Image any time that we make a little
+         # change to our sourcecode.
+         - ./server:/app
+      environment:
+         # sets a variable in the Container at runtime
+         # to know how to connect to Redis and postgres
+         - REDIS_HOST=redis
+         # as configured in the redis Image (6379 is the  default  configuration value)
+         - REDIS_PORT=6379
+         - PGUSER=postgres
+         - PGHOST=postgres
+         # here we provide the default postgresql values, as  we didn't override them in the postgres service definition above.
+         - PGDATABASE=postgres
+         - PGPASSWORD=postgres_password
+         - PGPORT=5432
+         # alternate environment definition syntax:
+         # variablename
+         # e.g.
+         # REDIS_HOST
+         # which sets a variable in the Container at runtime
+         # but the value is taken  from  "your computer/shell"
+      depends_on:
+         - postgres
+   client:
+      build:
+         dockerfile: Dockerfile.dev
+         # were to find everything you need to build the Container, including the Dockerfile
+         context: ./client
+      volumes:
+         # This is going to make sure that the "node_modules" directory inside the Container does not
+         # get overwritten by any "node_modules" folder that we might have inside the client.
+         #  directory inside the Container
+         - /app/node_modules
+         # Everything inside the "client" directory should be shared with the "app" folder inside the Container.
+         # directory relevant to the docker-compose.yml file : Container directory
+         - ./client:/app
+      stdin_open: true
+
+   worker:
+      build:
+         dockerfile: Dockerfile.dev
+         context: ./worker
+      # We also need to specify the relevant volumes, to make sure that we do not have
+      # to constantly rebuild the client Image every time that we change some code.
+      volumes:
+         - /app/node_modules
+         # Evevery file call inside the "/app" Container directory should redirect (i.e. be mapped virtually to) to the same file inside the
+         # "worker" directory in our project here.
+         - ./worker:/app
+      environment:
+         - REDIS_HOST=redis
+         - REDIS_PORT=6379
+
+   # This is definitely a service we want to make sure is always running ahead,
+   # 100% of the time, no matter what. So, I am going to use that restart policy
+   # that we spoke about a while ago on here.
+   nginx:
+      restart: always
+      build:
+         dockerfile: Dockerfile.dev
+         context: ./nginx
+      # setup the port mapping
+      ports:
+         # externalPort:internalPort
+         - "3050:80"
+      depends_on:
+         - api
+         - client
+
+   #  The "--build" flag in the "docker-compose up" command ==> Build Images before starting Containers.
+   # --build flag ---> i.e. force  re-build everything
+   #  docker-compose down  && docker-compose up --build
