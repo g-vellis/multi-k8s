@@ -35,23 +35,23 @@ after_success:
    - docker build -t gvellis/multi-server ./server
    - docker build -t gvellis/multi-worker ./worker
 
-# So, after we build the production version of the Images, we then have to push them all off to Docker Hub
+   # So, after we build the production version of the Images, we then have to push them all off to Docker Hub
 
-# In order to push an image to Docker Hub, we need to first log in to the Docker CLI.
-# Long ago, we execute: "docker login" which associated our Docker client right here with our Docker account.
-# And so, if you and I pushed any Images up to Docker Hub, they would be automatically associated with your account or my account.
-# So, we need to make sure that we do the exact same thing inside our Traveston YAML script, before we can attempt to push those off to Docker hub.
+   # In order to push an image to Docker Hub, we need to first log in to the Docker CLI.
+   # Long ago, we execute: "docker login" which associated our Docker client right here with our Docker account.
+   # And so, if you and I pushed any Images up to Docker Hub, they would be automatically associated with your account or my account.
+   # So, we need to make sure that we do the exact same thing inside our Traveston YAML script, before we can attempt to push those off to Docker hub.
 
-    # Login to the Docker CLI
-    #       Environment variable we defined interactivelly in Travis
-    #       |                                     Environment variable we defined interactivelly in Travis
-    #       |                                     |
-    - echo "$DOCKER_PASSWORD"  | docker login -u "$DOCKER_ID" --password-stdin
-    # Essentially this is how we log into Docker in one single command.
+   # Login to the Docker CLI
+   #       Environment variable we defined interactivelly in Travis
+   #       |                                     Environment variable we defined interactivelly in Travis
+   #       |                                     |
+   - echo "$DOCKER_PASSWORD"  | docker login -u "$DOCKER_ID" --password-stdin
+     # Essentially this is how we log into Docker in one single command.
 
-    # Take those Images and push them to Docker Hub.
-    - docker push gvellis/multi-client
-    - docker push gvellis/multi-nginx
-    - docker push gvellis/multi-server
-    - docker push gvellis/multi-worker
-    
+
+     # Take those Images and push them to Docker Hub.
+   - docker push gvellis/multi-client
+   - docker push gvellis/multi-nginx
+   - docker push gvellis/multi-server
+   - docker push gvellis/multi-worker
