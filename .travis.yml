@@ -30,6 +30,7 @@ script:
 after_success:
    #  Let's first begin by doing the production version of each of our different sub-projects in here.
    # So, we need to do a docker build for the client, nginx, server and worker folders.
+   # we do not use the -f file, as we want the default Dockerfile to be used (i.e. Dockerfile - not e.g. the Dockerfile.dev).
    - docker build -t gvellis/multi-client ./client
    - docker build -t gvellis/multi-nginx ./nginx
    - docker build -t gvellis/multi-server ./server
@@ -55,3 +56,15 @@ after_success:
    - docker push gvellis/multi-nginx
    - docker push gvellis/multi-server
    - docker push gvellis/multi-worker
+
+deploy:
+   provider: elasticbeanstalk
+   region: us-east-2
+   app: multi-docker
+   env: MultiDocker-env
+   bucket_name: elasticbeanstalk-us-east-2-736749029387
+   bucket_path: docker-multi
+   on:
+      branch: master
+   access_key_id: $AWS_ACCESS_KEY
+   secret_access_key: $AWS_SECRET_KEY
