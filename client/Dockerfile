@@ -1,6 +1,7 @@
 # 1st build phase:
 
-FROM node:alpine as builder
+#FROM node:alpine as builder
+FROM node:alpine
 
 WORKDIR "/app"
 
@@ -26,7 +27,8 @@ EXPOSE 3000
 COPY ./nginx/default.conf /etc/nginx/conf.d/default.conf
 
 # we copy over all the production built asserts from the build phase (i.e. the prev. phase). 
-COPY --from=builder /app/build /usr/share/nginx/html
+#COPY --from=builder /app/build /usr/share/nginx/html
+COPY --from=0 /app/build /usr/share/nginx/html
 
 
 
