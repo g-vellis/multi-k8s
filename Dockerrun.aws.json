@@ -18,12 +18,14 @@
       {
          "name": "worker",
          "image": "gvellis/multi-worker",
+         "hostname": "worker",
          "essential": false,
          "memory": 128
       },
       {
          "name": "nginx",
          "image": "gvellis/multi-nginx",
+         "hostname": "nginx",
          "essential": true,
          "portMappings": [
             {

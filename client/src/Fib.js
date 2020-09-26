@@ -14,6 +14,11 @@ class Fib extends Component {
    componentDidMount() {
       this.fetchValues();
       this.fetchIndexes();
+
+      setInterval(() => {
+         this.fetchValues();
+         this.fetchIndexes();
+      }, 2000);
    }
 
    async fetchValues() {
