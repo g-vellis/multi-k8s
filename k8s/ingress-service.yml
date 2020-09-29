@@ -1,0 +1,120 @@
+# https://kubernetes.io/docs/concepts/services-networking/ingress/#name-based-virtual-hosting
+
+# For example, the following Ingress routes traffic requested for first.bar.com to service1,
+# second.foo.com to service2, and any traffic to the IP address without a hostname defined in request
+# (that is, without a request header being presented) to service3.
+
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+   name: ingress-service
+   # Anotations are essentially additional configuration options that are going
+   # to specify higher level configuration around the Ingress object that gets created.
+   annotations:
+      # This configuration tells k8s that we want to create a Ingress Controller
+      # based on the nginx project.
+      kubernetes.io/ingress.class: nginx
+      nginx.ingress.kubernetes.io/use-regex: "true"
+      # Immediately after, we are going to add in another configuration rule that is going to
+      # specifically configure how our copy of nginx behaves.
+      #
+      # In particular, it says that if we end up matching a route like "/api",
+      # after deciding to send it to the server, we are going to do first
+      # a little bit of a re-write on the request, and essentially it is going to
+      # remove the "/api" part.
+      #
+      # See figure below to see what exactly this line does.
+      nginx.ingress.kubernetes.io/rewrite-target: /$1
+   namespace: default
+spec:
+   # Our rules say that there are two possible paths that we can match traffic to.
+   #
+   # The service listens by default on ports: 80 and 443.
+   # So, in our browser, we do not have to specify a port.
+   #
+   rules:
+      - http:
+           paths:
+              # If someone ever comes to the path of just "/" by itself, or any route that
+              # looks like "/" followed by anything besides "/api", then we want to send
+              # that request to whatever set of Pods are governed by the service of
+              # client-cluster-ip-service.
+              #
+              # And again, we just refer to the name of that service as we had designated
+              # inside of our client-cluster-ip-service.yml file.
+              - path: /?(.*)
+                backend:
+                   # look at the name attribute specified in "client-cluster-ip-service.yml".
+                   #
+                   # We do not have to actually specify the IP address of these servers
+                   # (i.e. "client-cluster-ip-service" and "server-cluster-ip-service")
+                   # inside of our Cluster.
+                   # We just refer to the name of the service and then all this nginx Ingress stuff is going
+                   # to figure it out from there.
+                   # In the "servicePort" we specify the port for both these services.
+                   #
+                   serviceName: client-cluster-ip-service
+                   servicePort: 3000
+              # Then, if a request came in with a leading route name of "/api", we want it to
+              # instead send it to the set of Pods that are governed or managed by
+              # the server-cluster-ip-service.
+              - path: /api/?(.*)
+                backend:
+                   # look at the name attribute specified in "server-cluster-ip-service.yml".
+                   serviceName: server-cluster-ip-service
+                   servicePort: 5000
+#
+#
+#
+#                                        +-------------------+
+#                                        | The request has a |       +--------+
+#                                +------>|     path of "/"   |------>| Client |
+#                                |       +-------------------+       +--------+
+#       +------------------+     |
+# ----> | Look at the path |-----+
+#       | of the request   |     |
+#       +------------------+     |       +-------------------+
+#                                |       | The request has a |       +-------------------+       +--------+
+#                                +------>|   path of "/api"  |------>| Remove the "/api" |------>| Server |
+#                                        +-------------------+       +-------------------+       +--------+
+#
+#
+
+#
+# Ingress-Nginx on
+#   Google Cloud
+#
+#                                +---------------------------------------------------------------------------------------------------------------------------------------------+
+#                                |                                                                                                                                             |
+#                                |                                                                                                                  +--------------------+     |
+#                                |                                                 +---------------------------------+                              |     Deployment     |     |
+#                                |                                                 |            |`.`.`.`.`.`.`.`.`.`.|                       +------|  multi-worker pod  |     |
+#                                |                                                 |            |  multi-client pod  |                       |      +--------------------+     |
+#                                |                                                 |  ClusterIP |--------------------|                       |                                 |
+#                                |                                            +--->|   Service  |  multi-client pod  |                       |                                 |
+#                                |                                            |    |            |--------------------|                       V                                 |
+#                                |                                            |    |            |  multi-client pod  |                  +-----------+--------------------+     |
+#                                |                                            |    +---------------------------------+                  | ClusterIP |     Deployment     |     |
+#                                |                                            |                                                +------->|  Service  |`.`.`.`.`.`.`.`.`.`.|     |
+#                                |                                            |                                                |        |           |      Redis pod     |     |
+#                +----------+    +----------------------------------+         |    +---------------------------------+         |        +-----------+--------------------+     |
+#                |  Google  |    |    Load   |     Deployment       |         |    |            |     Deployment     |         |                                               |
+#     Traffic--->|  Cloud   |--->|  Balancer |`.`.`.`.`.`.`.`.`.`.`.|         |    |            |`.`.`.`.`.`.`.`.`.`.|         |        +-----------+--------------------+     |
+#                |   Load   |    |  Service  | nginx-               |---------+--->|            |  multi-server pod  |---------+        | ClusterIP |     Deployment     |     |
+#                | Balancer |    |           | controller/nginx pod |         |    |  ClusterIP |--------------------|         |------->|  Service  |`.`.`.`.`.`.`.`.`.`.|     |
+#                +----------+    +-----------+----------------------+         |    |   Service  |  multi-server pod  |---------+        |           |    Postgres pod    |     |
+#                                |                    Λ                       |    |            |--------------------|         |        +-----------+--------------------+     |
+#                                |                    |                       |    |            |  multi-server pod  |---------+                               |               |
+#                                |              +-----------------+           |    +---------------------------------+                                         |               |
+#                                |              |  ingress Config |           |                                                                                V               |
+#                                |              +-----------------+           |                                                                         +--------------+       |
+#                                |              Set of routing rules          |    +----------------------------------+                                 | Postgres PVC |       |  "PVC" stands for: "Persistent Volume Claim"
+#                                |                                            |    |            |     Deployment      |                                 +--------------+       |
+#                                |                                            +--->|  ClusterIP |`.`.`.`.`.`.`.`.`.`.`|                                                        |
+#                                |                                                 |   Service  | default-backend pod |                                                        |
+#                                |                                                 +----------------------------------+                                                        |
+#                                |                                                                                                                                             |
+#                                +---------------------------------------------------------------------------------------------------------------------------------------------+
+#
+#
+

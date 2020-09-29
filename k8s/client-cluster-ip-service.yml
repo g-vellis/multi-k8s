@@ -1,0 +1,90 @@
+# In the world of k8s, we use a Service anytime that we want to set up
+# some networking for an 'object', such as a single Pod, or
+# a group of Pods that are managed by a Deployment.
+# Phrased differently, Services Set up networking in a k8s Cluster
+
+# ClusterIP exposes a set of Pods to other 'objects' in the Cluster.
+# Compared to the NodePort Service, which exposes a single Pod or a cluster of Pods
+# to the outside world, the ClusterIP is a little bit more restrictive
+# form of networking. The ClusterIP is going to allow any other 'object'
+# inside of our Cluster to access the 'object' that the ClusterIP
+# IS pointing AT, but NOBODY from the outside world.
+#
+# If we did not have a given ClusterIP service, then the Pod at which the
+# ClusterIP pointed would be completely unreachable and nothing inside
+# of our cluster would be allowed to access the Pod in question.
+
+#
+# Why multi-worker Pod does not have a ClusterIP, if it needs to communicate with redis Pod inside the Cluster?
+#    - Because nothing needs access to the multi-worker Pod.
+#    - You would have a ClusterIP Service attached, if the multi-worker Pod
+#      would need to be Accessed BY some other 'object' in the Cluster
+#      (e.g. 'object' -> multi-worker)
+#      (however, in this case, multi-worker -> Redis is uni-directional)
+#
+
+# So that' is what the ClusterIP is all about.
+# It provides access to an 'object' (most commonly a set of Pods)
+# to everything else INSIDE of our cluster.
+
+apiVersion: v1
+kind: Service
+metadata:
+   name: client-cluster-ip-service
+   namespace: default
+spec:
+   type: ClusterIP
+   selector:
+      # The component of the application (hence the selector name: "component: web")
+      # which this ClusterIP Service is going to be managing (i.e. the component web Pod).
+      # The selector points to the "label" defined and used in the Deployment
+      # 'object' (see: "client-deployment.yml") which we we want to target
+      # from this ClusterIP service.
+      #
+      # So, we target the Pods managed by the Deployment 'object' in question
+      # (i.e. client-deployment) and not the Deployment itself.
+      component: web
+   ports:
+      # Configure the different ports that the clusterIP service is going to
+      # expose and be available on.
+      #
+      # How other 'objects' (or other Pods)
+      # inside our Cluster are going to acces the
+      # Pod that we are governing access to.
+      - port: 3000
+        # The port on the target Pod that we are
+        # providing access to.
+        targetPort: 3000
+#
+#
+#                                                     Your Computer
+# +----------------------------------------------------------------------------------------------------------------------------------------------------+
+# |                                                                                                                                                    |
+# |                                      +--------------------------------------------------------------------------------------------------------+    |
+# |                                      |                                           Kubernetes Node                                              |    |
+# |                                      |                                       (VM created by MiniKube)                                         |    |
+# |                                      |                                                                                                        |    |
+# |                                      |                                                                                                        |    |
+# |                                      |                      +--------------------+                                                            |    |
+# |                                      |                      |   OTHER Pod that   |                                                            |    |
+# |                                      |                      | needs multi-client |                                                            |    |
+# |                                      |                      |        Pod         |                                                            |    |
+# |                                      |---------+            +--------------------+                                                            |    |
+# |                                      |         |                          |      "client-cluster-ip=service.yml"                              |    |
+# |                                      |         |                          |          +----------------------+                                 |    |
+# |                                      |         |                          |          |       Service        |                                 |    |
+# |                                      |         |                          |          |      ClusterIP       |                                 |    |
+# |                                      |  Kube-  |                          |          |``````````````````````|                                 |    |
+# |                                      |  Proxy  |                          |      3000|``````````````````````|                                 |    |
+# |                                      |         |                          |--------->|         port         |          "client-deployment.yml"|    |
+# |       Me                             |         |                                     |----------------------|         3000 +--------------+   |    |
+# |        |                             |         |                                     |      targetPort      |------------> | multi-client |   |    |
+# |   +---------+                        |         |                                     +----------------------+              |     Pod      |   |    |
+# |   | Browser |        x               |         |                                                                           +--------------+   |    |
+# |   +---------+                        |         |                                                                                              |    |
+# |                                      |---------+                                                                                              |    |
+# |                                      |                                                                                                        |    |
+# |                                      +--------------------------------------------------------------------------------------------------------+    |
+# |                                                                                                                                                    |
+# +----------------------------------------------------------------------------------------------------------------------------------------------------+
+#

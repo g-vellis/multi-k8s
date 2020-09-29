@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+   name: worker-deployment
+spec:
+   replicas: 1
+   selector:
+      # Match a label on some other 'object' inside of our Cluster.
+      matchLabels:
+         component: worker
+
+   # Τemplate for the Πods that are created.
+   template:
+      metadata:
+         # Τhe different labels that need to be applied to every Pod that
+         # gets created.
+         labels:
+            component: worker
+      spec:
+         containers:
+            # Τhe single Container that we want to run is going to have a name of "worker".
+            - name: worker
+              image: gvellis/multi-worker
+              # Just as before, we are going to eventually need to stuff in
+              # some ENVIRONMENT_VARIABLES into this thing to tell it how to connect to Redis.
+              # env pertains to Environment variables
+              env:
+                 # The name of the Environment Variable.
+                 - name: REDIS_HOST
+                   # The value of the Environment Variable.
+                   # The name we defined in the ClusterIP service in question (see: "redis-cluster-ip-service.yml").
+                   value: redis-cluster-ip-service
+                 - name: REDIS_PORT
+                   # 6379 is the default value for the Redis connection port.
+                   value: "6379"
+              # ports:
+              #    - containerPort: 80
+              #      name: worker-deployment
+              resources:
+                 requests:
+                    cpu: 100m
+                    memory: 100Mi
+                 limits:
+                    cpu: 100m
+                    memory: 100Mi
+#
+#
+# One thing to mentionι is that, if you look at the application Cluster diagram, there is NOTHING inside
+# of our Worker Image or the Worker Container that needs TO BE ACCESSIBLE FROM anything else
+# inside of our CLUSTER.
+# In other words, there is no other 'object' whatsoever, no other Service, no other Image, no Container,
+# no nothing that needs to DIRECTLY connect to the multi-worker and try to get some information out of it.
+#
+# The multi-worker is going to connect to something else inside of application, but nothing is going to
+# make a unprompted request into the multi-worker.
+#
+# And as such, the multi-worker does not need to have any port assigned to it, and it does not need to have
+# any Service assigned to it either.
+#
+# We only make use of Services when we want to have requests GOING INTO a set of Pods or into a single
+# Pod for that matter. And because that is not the case here, no need for a Service, no need to worry about
+# any ports.
+#

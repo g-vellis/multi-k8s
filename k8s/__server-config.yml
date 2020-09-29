@@ -1,0 +1,66 @@
+#
+# Having seperate config files very clearly tells you:
+#   - how many different objects exist in your entire cluster, and
+#   - the naming scheme that we are using right now also makes it
+#     extremely clear where the configuration for any given 'object'
+#     can be found.
+#
+# For example, if you put the k8s app architecture diagram inside the readme of your project,
+# another engineer that comes and works on your project, and says: "oh I need to like change
+# a port related to the ClusterIP service for the multi-client Pod, they could very easily
+# do so. they instantly know where to look to find the configuration for any given 'object'.
+#
+# If it wasn't for that, if you had combined everything into a kind of single files or condensed everything
+# down, they would have to understand that this ClusterIP Service and the Deployment for the
+# multi-client Pods are in the same file.
+# And so, it is a little bit harder to come up with a naming scheme or a naming convention
+# that makes it really clear that hey everything related to multi-client is inside of like xyz file.
+#
+#
+#
+#
+#
+#
+#
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#    name: server-deployment
+# spec:
+#    replicas: 3
+#    selector:
+#       matchLabels:
+#          component: server
+#    template:
+#       metadata:
+#          labels:
+#             component: server
+#       spec:
+#          containers:
+#             - name: server
+#               image: gvellis/multi-server
+#               ports:
+#                  - containerPort: 5000
+
+#               resources:
+#                  requests:
+#                     cpu: 100m
+#                     memory: 100Mi
+#                  limits:
+#                     cpu: 100m
+#                     memory: 100Mi
+
+# # the 3 dashes below provides for combining multiple config files.
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#    name: client-cluster-ip-service
+#    namespace: default
+# spec:
+#    type: ClusterIP
+#    selector:
+#       component: web
+#    ports:
+#       - port: 3000
+#         targetPort: 3000

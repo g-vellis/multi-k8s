@@ -1,0 +1,72 @@
+# With a PersistentVolumeClaim we advertise the possible storage options.
+#
+# This PersistentVolumeclaim tells k8s that we want to find a storage option that meets these requirements below.
+#
+#
+# An advertised StorageClaim option can be leveraged within the context of a Pod Config
+# turning eventually the StorageClaim into allocated Storage space ready to be used.
+#
+# A VolumeClaim is NOT an actual instance of storage.
+# A VolumeClaim is something that we are going to attach to a Pod Config.
+#
+# Below we create our PersistentVolumeClaim which is essentially advertising
+# an option that can be used for storage by all the different Pods in our application.
+#
+# https://stackoverflow.com/questions/49806169/where-does-docker-for-mac-store-persistentvolume-data-on-the-local-filesystem-wh
+#  Docker stores these volumes in /Users/username/.docker/Volumes/your-pv-name/pvc-SOME-UUID
+#
+# kubectl get pv   (pv stands for Persistent Volumes). This is going to list out all the different persistent volumes that have been created inside of our application
+#
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+   name: database-persistent-volume-claim
+
+# All the specs section below says is:
+# if we attach this Claim to a Pod, k8s must find an instance of storage,
+# like a slice of your hard drive, that meets these requirements.
+spec:
+   # accessModes:
+   #   - ReadWriteOnce -> Can be used by a SINGLE NODE.
+   #                      Means that we want to get some instance of storage,
+   #                      like a slice of your hard drive, that can be used
+   #                      by a single node at a time.
+   #                      That single Node can use it to both read and write
+   #                      information to that Volume.
+   #
+   #   - ReadOnlyMany  -> MULTIPLE NODES can READ from this.
+   #                      Multiple Nodes at the same time can read information
+   #                      from this Persistent Volume.
+   #
+   #   - ReadWriteMany -> Can be READ AND WRITTEN to by MANY NODES.
+   #                      We can both read and write information to this Persistent
+   #                      Volume by many nodes at the same time.
+   #
+   accessModes:
+      # Now again, I want to really highlight the fact that the access mode
+      # that we put in right here, says: if you attach me to a Pod Config
+      # and then hand me off to k8s, k8s is going to have to find
+      # an instance of storage that supports this accessMode.
+      #
+      # If a Pod mounts a volume with "ReadWriteOnce" access mode (most common - default one),
+      #     - no other Pod can mount it.
+      # If one or more Pods mount a volume with "ReadOnlyMany" access mode,
+      #     - multiple Pods can mount it, and
+      #     - consume the same disk at the same time.
+      #     - An example use case is serving static content across multiple replicas.
+      #
+      # You can't attach persistent disks in write mode on multiple nodes at the same time. See Deployments Vs. StatefulSets.
+      # In Google Compute Engine (GCE) the only allowed modes are: "ReadWriteOnce" and "ReadOnlyMany".
+      #
+      - ReadWriteOnce
+   resources:
+      requests:
+         # So, with storage, we are essentially saying that k8s is going to have to find
+         # a storage option: either one that has been provisioned ahead of time,
+         # or one that is going to be created on the fly,
+         # that has at least 2GBs of space or to be exact: it has to have exactly 2GBs of space.
+         storage: 2Gi
+         # With the storageClassName option you can customize where k8s
+         # is going to look to create this little file system to allocate to your Pod.
+         # storageClassName: "...." e.g. Google Cloud Persistent Disk, AWS Block Store, Azure Disk, Azure File, etc.
+# https://kubernetes.io/docs/concepts/storage/storage-classes

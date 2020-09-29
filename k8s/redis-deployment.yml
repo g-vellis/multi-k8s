@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+   name: redis-deployment
+
+spec:
+   replicas: 1
+   selector:
+      matchLabels:
+         component: redis
+
+   template:
+      metadata:
+         labels:
+            component: redis
+      spec:
+         containers:
+            - name: redis
+              # It is going to use the Image Redis, but
+              # no Docker id is required this time, like gvellis/....,
+              # because we do not have our own custom version of Redis,
+              # we are using that copy that is included in the public repository
+              # over on Docker Hub.
+              # image: gvellis/redis
+              image: redis
+              # We set up the different ports that need to be mapped
+              # to the Container.
+              # In the case of Redis, the default port that it uses is 6379.
+              ports:
+                 - containerPort: 6379
+
+              resources:
+                 requests:
+                    cpu: 100m
+                    memory: 100Mi
+                 limits:
+                    cpu: 100m
+                    memory: 100Mi

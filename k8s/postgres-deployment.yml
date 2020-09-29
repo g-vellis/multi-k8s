@@ -1,0 +1,192 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+   name: postgres-deployment
+spec:
+   # one Pod at a time
+   replicas: 1
+   selector:
+      matchLabels:
+         component: postgres
+
+   # This is the template that is used for every Pod that is created by this Deployment.
+   #
+   # We are going to update this template section and tell this Pod that
+   # when it is created, it needs to request some type of long term storage.
+   # In other words, a Persistent Volume that meets all the requirements
+   # that were advertised by the Persistent Volume Claim (PVC):
+   # i.e. "database-persistent-volume.yml" we have already created.
+   template:
+      metadata:
+         labels:
+            component: postgres
+      spec:
+         # All the "volumes" section is going to do is allocate that storage.
+         # Once we allocate that storage, once we get it available, we need
+         # to actually assign it for use by all the different Containers
+         # that are in use by our Pod.
+         # So, in addition to this "volume" section, we are also going to add on
+         # some config to our "containers" section as well.
+         #
+         volumes:
+            - name: postgres-storage
+              #
+              # This below is what sets up the request on the Pod to reach out to k8s
+              # and say: "I need some type of long term storage that meets all
+              # the requirements that are laid out inside of the "database-persistent-volume.yml"
+              # Persistent Volume Claim object.
+              #
+              persistentVolumeClaim:
+                 # The name of the Claim that we used in the
+                 # database persistent volume claim (see: "database-persistent-volume.yml").
+                 #
+                 # So, this line alone below is what is going to make k8s realize that it needs
+                 # to go over to either the local hard drive, if we are in the case of your
+                 # local environment, or some cloud provider, in the case of being deployed
+                 # in production, and say: "hey I need to somehow get some slice of storage
+                 # that has a) this "access mode", and b) "storage" of 2 GBs.
+                 #
+                 claimName: database-persistent-volume-claim
+         containers:
+            - name: postgres
+              image: postgres
+              ports:
+                 # the default postgres port.
+                 - containerPort: 5432
+
+              # And then, inside the Container we put together some actual options to say:
+              # take that volume (i.e. the one specified above - under template/spec/volumes)
+              # and make it available inside of this very particular Container.
+              volumeMounts:
+                 # Must be identical to the "volumes/name" value specified above.
+                 # So, when you put the name below, it means:
+                 #    - go back to the "volumes" entry (entry because it refers to an array record, see: "volumes" above), and:
+                 #      - find some piece of storage that we have just asked k8s for, and
+                 #    - that piece of storage is going to be used for this particular volume mount here.
+                 - name:
+                      postgres-storage
+
+                      # The "mountPath" is designating where inside the Container,
+                      # this storage (i.e. Persitent Volue) should be made available.
+                      # In other words, you are going to put in a little folder reference right here, and then,
+                      # anything that the Container stores at that folder (or inside that directory)
+                      # will be actually stored inside of our (Persistent) volume (outside the Container).
+                      # This is pretty similar to the Docker volumes we have used.
+                      #
+                      # So, for the "mountPath", we are going to designate the data directory
+                      # that Postgres uses for storing data on the hard drive, because, that is
+                      # the actual data that we want to backup. We want to backup all the data
+                      # that Postgres is storing on the hard drive.
+                      # The default storage location for Postgres is: "/var/lib/postgresql/data"
+                      #
+                      # So, "/var/lib/postgresql/data" directory inside the Container will point to
+                      # the same exact directory, but outside the Container (in the Node's file system).
+                      #
+                      #
+                      # Now, for a normal volume that would be it.
+                      # So, if this was just a normal application where we are just trying to set up
+                      # some persistent storage that is really all we have to do.
+                   mountPath: /var/lib/postgresql/data
+                   # But with Postgres in particular, we are going to put in one additional
+                   # little option here, i.e. "subPath: postgres".
+                   #
+                   # The subPath option means that: any data inside the Container that is stored
+                   # inside of mountPath (i.e. in "/var/lib/postgresql/data"), is going to be stored
+                   # in the VM's file system inside a folder called" "postgres" (inside of the actual Persistent Volume Claim).
+                   #
+                   # So, if we ran our application for some amount of time and then saved some data to our Postgres database
+                   # and then eventually opened up our Persistent Volume (i.e. Node's FS), we would see that all the data that was saved
+                   # to this folder is nested inside of a folder called "postgres" inside the Persistent Volume.
+                   # /var/lib/postgresql/data/postgres.
+                   # This is something very specific for Postgres.
+                   #
+                   # It is just because, if you try to startup Postgres with something that it thinks is a Volume mount,
+                   # by default, it is going to say: "hey I don't want to save data here".
+                   # And so, by having Postgres instead save data into a subfolder inside there, it is going to override
+                   # that default behavior.
+                   # Now, saving data into a Volume with Postgres is totally fine.
+                   # It is just that Postgres in some cases things that you are not necessarily working with Docker, it is a long stroy.
+                   # This is just some very particular stuff around Postgres.
+                   subPath: postgres
+
+              resources:
+                 requests:
+                    cpu: 100m
+                    memory: 100Mi
+                 limits:
+                    cpu: 100m
+                    memory: 100Mi
+              env:
+                 # We are setting up a environment variable of "POSTGRES_PASSWORD" that
+                 # we are going to pass into the Container.
+                 #
+                 # The name below is the environment variable name that the posgres Image expects.
+                 #
+                 # if the Container or the Image postgres sees an environment variable of POSTGRES_PASSWORD,
+                 # it is going to use that as the default password.
+                 - name: POSTGRES_PASSWORD
+                   # We override the Image's default password that it sets up when it creates a copy
+                   # of the database inside that Container and say, hey, use this password instead.
+                   # We are going to say, you are going to get the value for this, from: a secret key reference.
+                   valueFrom:
+                      secretKeyRef:
+                         # the reference name we used when we issued via kubctl the secrete creation.
+                         #                                  | i.e. the <secret name>
+                         #                                  v
+                         # kubectl create secret generic pgpassword --from-literal PGPASSWORD=12345asdf
+
+                         name: "pgpassword"
+                         # the key we want to reference inside of that secret
+                         # Remember that a secret can store many key-value pairs.
+                         # We have only put one key-value pair in here, but we could have
+                         # very easily added in several other key value-pairs as well.
+                         # So, we need to point out the key-value pair that we want to save
+                         # into this environment variable.
+                         #                                                         | i.e. the key of the key-value pair
+                         #                                                         v
+                         # kubectl create secret generic pgpassword --from-literal PGPASSWORD=12345asdf
+                         key: "PGPASSWORD"
+#
+# Steps for Adding Support for Persistent Volume Storage (PV):
+# PV can survive Container crashes, Pod deletions/re-creations.
+# PV lifecycle is Node-wide (i.e. tied to that of a Node - it never gets lost, unless we explicitly and intentionally as programmers delete it).
+#
+# 1. we advertise the Storage options via a PVC - persistent-volume-claim spec/file (see e.g.: "database-persistent-volume-claim.yml").
+# 2. allocate the storage option we want, within the context of a Pod template inside a Deployment 'object', by means of the: "template/spec/volumes" (see e.g.: "postgres-deployment.yml").
+# 3. assign the allocated storage for use by all the different Containers that are in use by our Pod, by means of the "spec/template/containers/-name/volumeMounts" section (see e.g.: "postgres-deployment.yml").
+#
+
+#
+#
+# Steps to create and use a secret to saferly store and retrieve sensitive information (e.g. a password):
+#  1. We create a secret by issuing the following (imperative - i.e. no config file provided) command via our terminal:
+#      kubectl create secret generic <secret name> --from-literal key=value
+# e.g. kubectl create secret generic pgpassword --from-literal PGPASSWORD=12345asdf
+#
+# 2. We reference to this via an environment variable as shown below:
+#     env:
+#        ...
+#           we wire up the secret we created with the imperative kubectl command.
+#           This below is the name of the evnironment variable that our application expects.
+#        - name: PGPASSWORD
+#             Below we say: take your value - indirectly - from a secret key.
+#          valueFrom:
+#             secretKeyRef:
+#                                                        As name value, we use the "reference name" we specified when we issued via the kubctl the secret creation command.
+#                                                        | i.e. the <secret name>
+#                                                        v
+#                          kubectl create secret generic pgpassword --from-literal PGPASSWORD=12345asdf
+#                       <secret name>
+#                 name: pgpassword
+#
+#                          Remember that a secret can store many key-value pairs.
+#                          We have only put one key-value pair in here, but we could have
+#                          very easily added in several other key value-pairs as well.
+#                          So, we need to point out the key-value pair that we want to save
+#                          into this environment variable.
+#                          | i.e. the key of the key-value pair
+#                          v
+#                          kubectl create secret generic pgpassword --from-literal PGPASSWORD=12345asdf
+#                      "key"
+#                 key: PGPASSWORD
+#

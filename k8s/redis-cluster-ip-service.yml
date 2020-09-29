@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+   name: redis-cluster-ip-service
+
+spec:
+   type: ClusterIP
+   # We provide the selectors so that this Service knows
+   # what set of Pods it is managing access to.
+   selector:
+      component: redis
+
+   # Finally, we need to designate what set of ports this Service is going to manage.
+   ports:
+      # Any outside 'object' that is trying to get at our redis Pod is going to access this
+      # thing on port 6379.
+      - port: 6379
+        # And then, after it goes through the Service, we are just going to let it stick with 6379
+        # and have that port be what it connects to inside of our Containers.
+        targetPort: 6379

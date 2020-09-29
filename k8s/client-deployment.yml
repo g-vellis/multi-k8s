@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+   # The Deployment 'object' name, not the Pod's name.
+   name: client-deployment
+spec:
+   replicas: 1
+   # The "selector" below and the "label" inside the Template is how the
+   # Deployment is going to identify the different Pods it is
+   # going to manage.
+   selector:
+      matchLabels:
+         # i.e. the component of the application this deployment
+         # is going to be managing is the web or the front-end side
+         # of things (hence: the name "component: web").
+         component: web
+      # the Pod template.
+   template:
+      metadata:
+         # The "selector" specified above and the "label" specified under the "template"
+         # determines how the Deployment is going to identify the different Pods it is
+         # going to manage.
+         #
+         # We do not target the Deployment 'object' iself from e.g. a ClusterIP service,
+         # but only the Pods targeted by it (via the "label" attribute shown below).
+         # So, to select this Deployment wihtin the context of a ClusterIP Service,
+         # we should not try to reference the Deployment in question itself,
+         # but the Pods it targets.
+         labels:
+            component: web
+      spec:
+         # Here we specify all the different Containers that are goping to run
+         # inside this Pod.
+         # initContainers:
+         # Init containers are exactly like regular containers, except:
+         # - Init containers always run to completion.
+         # - Each init container must complete successfully before the next one starts.
+         containers:
+            - name: client
+              image: gvellis/multi-client
+              # We specify a port to open
+              # This is the port that is going to be mapped to the multi-client Image.
+              ports:
+                 # We set it to 3000, because that is the port used by the nginx inside the
+                 # above-mentioned Image.
+                 - containerPort: 3000
+              resources:
+                 requests:
+                    cpu: 100m
+                    memory: 100Mi
+                 limits:
+                    cpu: 100m
+                    memory: 100Mi

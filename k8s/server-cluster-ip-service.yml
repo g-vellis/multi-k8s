@@ -1,0 +1,195 @@
+apiVersion: v1
+# Kind of: service
+kind: Service
+metadata:
+   # The name of the (ClusterIP) service (i.e. 'object').
+   name: server-cluster-ip-service
+# We provide a spec. to customize exactly how this service behaves.
+spec:
+   # The type of the Service
+   type: ClusterIP
+   # We provide a selector that is going to tell the Service exactly
+   # what set of Pods it is supposed to provide access to
+   # (i.e. all multi-server Pods - see: "server-deployment.yml" ).
+   selector:
+      component: server
+
+   ports:
+      - port: 5000
+        targetPort: 5000
+#
+#
+#                                       selector:
+#                                   "component: server"
+#                                             |             +---------------------------------+
+#                                             V             |           Deployment            |
+#                                                           |`.`.`.`.`.`.`.`.`.`.``.`.`.`.`.`.|
+#                                                           |                                 |
+#                                                           |    +------+------------------+  |
+#                                        +-----------+      |    | Port | multi-server Pod |  | <-label:
+#                                        |           |   |--|--->| 5000 |                  |  |   "component: server"
+#   +-------------------+         +------|           |   |  |    +------+------------------+  |
+#   | Other 'object' in |         | Port | ClusterIP |   |  |    | Port | multi-server Pod |  |
+#   |     cluster       |-------->| 5000 |  Service  |---|--|--->| 5000 |                  |  |
+#   +-------------------+         +------|           | | |  |    +------+------------------+  |
+#                                    |   |           | | |  |    | Port | multi-server Pod |  |
+#                                    |   +-----------+ | |--|--->| 5000 |                  |  |
+#                                    |                 |    |    +------+------------------+  |
+#                                    |                 |    +---------------------------------+
+#                                    V                 V
+#                                    port              targetPort
+#
+# Note: port 5000 was hardcoded into the multi-server code
+#
+
+#    https://www.joyfulbikeshedding.com/blog/2018-03-26-studying-the-kubernetes-ingress-system.html
+#  **************************************************************************************************  #
+#           In the world of k8s there are several different implementations of an Ingress.             #
+#  **************************************************************************************************  #
+#                                         !!!!!!                                                       #
+#   We are going to be using a very specific implementation called an "Nginx Ingress",                 #
+#   (i.e. a community led project, available on: github.com/kubernetes/ingress-nginx).                 #
+#   We are NOT using "kubernetes-ingress",                                                             #
+#   (i.e. a project led by the company nginx, available on: github.com/nginxinc/kubernetes-ingress).   #
+#  **************************************************************************************************  #
+#
+#  **************************************************************************************************  #
+#                                         !!!!!!                                                       #
+#   Setup of ingress-nginx changes depending on your environment (e.g. local, GC, AWS, Azure, etc.)    #
+#   We are going to set yp ingress-nginx on our local machine and GC.                                  #
+#  **************************************************************************************************  #
+#
+#
+#                     +-----------------------------------------------------------------------------------------------------------+
+#                     |                                                                                                           |
+#                     |                                                                                 +--------------------+    |
+#                     |               +---------------------------------+                              |     Deployment     |     |
+#                     |               |            |     Deployment     |                              |`.`.`.`.`.`.`.`.`.`.|     |
+#                     |               |            |`.`.`.`.`.`.`.`.`.`.|                       +------|  multi-worker pod  |     |
+#                     |               |            |  multi-client pod  |                       |      +--------------------+     |
+#                     |               |  ClusterIP |--------------------|                       |                                 |
+#                     |          +--->|   Service  |  multi-client pod  |                       |                                 |
+#                     |          |    |            |--------------------|                       V                                 |
+#                +---------+     |    |            |  multi-client pod  |                  +-----------+--------------------+     |
+#                |         |-----|    +---------------------------------+                  | ClusterIP |     Deployment     |     |
+#                |  Nginx  |                                                      +------->|  Service  |`.`.`.`.`.`.`.`.`.`.|     |
+#     Traffic--->| Ingress |                                                      |        |           |      Redis pod     |     |
+#                |         |-----|    +---------------------------------+         |        +-----------+--------------------+     |
+#                +---------+     |    |            |     Deployment     |         |                                               |
+#                     |          |    |            |`.`.`.`.`.`.`.`.`.`.|         |        +-----------+--------------------+     |
+#                     |          +--->|            |  multi-server pod  |---------+        | ClusterIP |     Deployment     |     |
+#                     |               |  ClusterIP |--------------------|         |------->|  Service  |`.`.`.`.`.`.`.`.`.`.|     |
+#                     |               |   Service  |  multi-server pod  |---------+        |           |    Postgres pod    |     |
+#                     |               |            |--------------------|         |        +-----------+--------------------+     |
+#                     |               |            |  multi-server pod  |---------+                               |               |
+#                     |               +---------------------------------+                                         |               |
+#                     |                                                                                           V               |
+#                     |                                                                                    +--------------+       |
+#                     |                                                                                    | Postgres PVC |       |  "PVC" stands for: "Persistent Volume Claim"
+#                     |                                                                                    +--------------+       |
+#                     +-----------------------------------------------------------------------------------------------------------+
+#
+
+# In k8s, a CONTROLLER is any type of 'object' that constantly works
+# to make some desired state a reality inside of our Cluster.
+#
+#                                            Current State
+#                                          +----------------+
+#                                          |   No routing   |
+#                                          +----------------+
+#                                                  |
+#                                                  V           -+
+#     +-----------------+                  +----------------+   |
+#     | Ingress routing | fed via kubectl  | Controller for |    > Constantly works to
+#     |   rules to get  |----------------->|   our Ingress  |   |  make sure these routing
+#     |    traffic to   |                  +----------------+   |  rules are setup
+#     |     services    |                          |
+#     +-----------------+                          |
+#        Desired State                             V
+#                                        +----------------------+
+#                                        |   Pod running nginx  |
+#                                        | that handles routing |
+#                                        +----------------------+
+#                                               New State
+#
+#
+
+#                   +-----------------------------------------------+
+#                   |                    Node                       |
+#                   |                                               |
+#                   |                                +---------+    |
+#                   +------------------+     +------>| Service |    |
+#                   | 'Something' that |     |       +---------+    |
+#  Traffic -------->| accepts incoming |-----|                      |
+#                   |      traffic     |     |       +---------+    |
+#                   +------------------+     +------>| Service |    |
+#                   |          Λ                     +---------+    |
+#                   |          |creates                             |
+#                   |          |                                    |
+#                   | +--------------------+   fed to  +---------+  |
+#                   | |                    |   kubctl  | Ingress |  |
+#                   | | Ingress Controller |<----------|  Config |<-+--------------- We create this Ingress Config
+#                   | |                    |           +---------+  |                (i.e. a set of routing rules)
+#                   | +--------------------+                |       |                we are going to feed it to
+#                   +-------------|-------------------------|-------+                the kubectl which is going to
+#                                 V                         V                        create this Ingress Controller.
+#                     Watches for changes to the      Object that has a set of       Ingresse's job is to look at
+#                       Ingress and updates the          configuration rules         the Ingress Config (i.e. set of
+#                     'thing' that handles traffic     describing how traffic        routing rules) and make that a
+#                                                         should be routed.          reality.
+#                                                                                    The Ingress Controller has to create some infrastructure inside of our Cluster
+#                                                                                    to make sure that we are actually obeying those routing rules. And so, the
+#                                                                                    Ingress Controller is going to make something that accepts incoming traffic.
+#
+#
+# ***** With the very particular project that we are using of Ingress Nginx (i.e. "Nginx Ingress"),
+#       the Ingress Controller and the 'thing' that actually accepts traffic and routes it off to
+#       the appropriate location (see above diagram) is actually the same thing.
+#                                    |
+#                                    | (The "Nginx Ingress" community led project, available on: github.com/kubernetes/ingress-nginx)
+#                                    V
+#                   +-----------------------------------------------+
+#                   |                    Node                       |
+#                   |                                               |
+#                   |                                +---------+    |
+#                   |                        +------>| Service |    |
+#                   |                        |       +---------+    |
+#                   |           +------------|                      |
+#                   |           |            |       +---------+    |
+#                   |           |            +------>| Service |    |
+#                   |           |                    +---------+    |
+#                   |           |                                   |
+#                   | +---------------------+   fed to  +---------+ |
+#                   | |  Ingress Controller |   kubctl  | Ingress | |
+#  Traffic -------->| |  +thing that routes |<----------|  Config |<+------ We create this Ingress Config file.
+#                   | |       traffic       |           +---------+ |
+#                   | +---------------------+                       |
+#                   +-----------------------------------------------+
+#
+
+#
+# In k8s, a CONTROLLER is any type of 'object' that constantly works
+# to make some desired state a reality inside of our Cluster.
+#
+#
+#                                            Current State
+#                                          +----------------+
+#                                          | 0 Pods running |
+#                                          |  multi-client  |
+#                                          +----------------+
+#                                                  |
+#                                                  V           -+
+#     +----------------+                   +----------------+   |
+#     | 3 Pods running | fed via kubectl   | Deployment for |    > Deployment is a
+#     |  multi-client  |------------------>|  multi-client  |   | type of 'controller'
+#     +----------------+                   +----------------+   |
+#        Desired State                             |           -+
+#                                                  |
+#                                                  V
+#                                          +----------------+
+#                                          | 3 Pods running |
+#                                          |  multi-client  |
+#                                          +----------------+
+#                                               New State
+#
+

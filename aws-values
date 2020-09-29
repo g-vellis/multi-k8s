@@ -1,4 +1,0 @@
-username: postgres
-password:  postgres_password
-databasename: fibvalues
-port: 5432

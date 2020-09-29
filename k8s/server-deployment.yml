@@ -1,0 +1,123 @@
+# Deployment Service Type allows for changing all aspects of the tgargeted Pods.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+   name: server-deployment
+spec:
+   #
+   # We want 3 Pods running the multi-server Image.
+   replicas: 3
+   selector:
+      # We specify the selector that the Deployment is going to use
+      # to find these set of Pods that it is supposed to control.
+      matchLabels:
+         # component : piece of the application terminology
+         component: server
+   # Pods Template
+   template:
+      metadata:
+         # labels specified here must at least match up with whatever we put inside
+         # the spec. for the Deployment oitself (see: selector -> matchLabels).
+         labels:
+            component: server
+      # Below we provide the spec. that is going to customize the exact behavior
+      # of each of the Pods that gets created.
+      spec:
+         # We provide a list of Containers that this Pod is supposed to run.
+         #
+         # Here, we are only going to have one single Container inside of this Pod.
+         # We do not have any other Containers that need to run along with the
+         # multi-server Image.
+         #
+         # QUICK REMINDER:
+         # The multi-sserver Image that we put together does expect
+         # to get a handful of key-value pairs along with it (i.e. environment variables)
+         # that tell the multi-sserver (i.e. the Express API) exactly how to connect
+         # to our Postgres instance and the Redis instance as well.
+         #
+         # So, we need to make sure that these environemnt variables get injected
+         # into that Container that is created with the given Image. And the
+         # the entire goal of that is that we are going to tell the Express API,
+         # how to connect to Postgres and Redis.
+         #
+         containers:
+            - name: server
+              image: gvellis/multi-server
+              ports:
+                 # We want to have a containerPort accessible of 5000.
+                 - containerPort: 5000
+
+              resources:
+                 requests:
+                    cpu: 100m
+                    memory: 100Mi
+                 limits:
+                    cpu: 100m
+                    memory: 100Mi
+              # Just as before, we are going to eventually need to stuff in
+              # some ENVIRONMENT_VARIABLES into this thing to tell it how to connect to the Redis and Postgres instances.
+              # env pertains to Environment variables
+              env:
+                 # The name of the Environment Variable.
+                 - name: REDIS_HOST
+                   # The value of the Environment Variable.
+                   # The name we defined in the ClusterIP service in question (see: "redis-cluster-ip-service.yml").
+                   value: redis-cluster-ip-service
+
+                 - name: REDIS_PORT
+                   # The default Redis port.
+                   value: "6379"
+
+                   # The default username for Prostgres
+                   # which is technically not the best way
+                   # to make use of Postgres here, but for
+                   # our purpose it is totally fine.
+                 - name: PGUSER
+                   value: postgres
+
+                 # PGHOST is the connection string essentially telling multi-server
+                 # how to reach out to our Postgres instance.
+                 - name: PGHOST
+                   # The name we defined in the ClusterIP service in question (see: "postgres-cluster-ip-service.yml").
+                   value: postgres-cluster-ip-service
+
+                   # Remember, we also set up our postgres ClusterIP service to make 5432 port available.
+                 - name: PGPORT
+                   # The default Posgtes port.
+                   value: "5432"
+
+                 - name: PGDATABASE
+                   # The default Posgtes database.
+                   # Not quite the best way of doing things, but for our purposes it is good enough.
+                   value: postgres
+
+                   #we wire up the secret we created with the following imperative kubectl command.
+                   # This below is the name of the evnironment variable.
+                   # In our case, our copy of the server Image is going to be looking for a
+                   # PGPASSWORD environment variable.
+                 - name: PGPASSWORD
+                   valueFrom:
+                      secretKeyRef:
+                         # the reference name we used when we issued via kubctl the secrete creation.
+                         #                                  | i.e. the <secret name>
+                         #                                  v
+                         # kubectl create secret generic pgpassword --from-literal PGPASSWORD=12345asdf
+                         name: pgpassword
+                         # Remember that a secret can store many key-value pairs.
+                         # We have only put one key-value pair in here, but we could have
+                         # very easily added in several other key value-pairs as well.
+                         # So, we need to point out the key-value pair that we want to save
+                         # into this environment variable.
+                         #                                                         | i.e. the key of the key-value pair
+                         #                                                         v
+                         # kubectl create secret generic pgpassword --from-literal PGPASSWORD=12345asdf
+                         key: PGPASSWORD
+                         # So, now that we put the name and the key right above, k8s is going
+                         # to automatically open up the secret with the name of "pgpassword",
+                         # it is going to find the key-value pair inside of there, equal to
+                         # key - i.e. "PGPASSWORD",
+                         # it us going to find the value associate with it, which is 12345sdf, and
+                         # it is going to pass that into our Container as the environment variable
+                         # called: "PGPASSWORD".
+
+                         # So, our server now knows about the password to use for the database.
