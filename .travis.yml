@@ -1,0 +1,76 @@
+#                Travis Config File
+#                       |
+#                       V
+
+# We need to make sure that Travis has the ability to somehow reach out to our
+# k8s cluster and make changes to it, or essentially run a series of configuration
+# files and apply them to our cluster.
+#
+
+# We use sudo, because we are making use of Docker
+sudo: required
+services:
+   # We require the Docker service to be pre-installed as soon as we try to run our
+   # build, because we definitely need Travis to build our Images and even run that
+   # test Container after that.
+   - docker
+
+#
+# This is going to be a series of steps that is going to essentially do just about
+# everything up to the "Build the 'test' version of multi-client" point (i.e. step 4).
+before_install:
+   - openssl aes-256-cbc -K $encrypted_9f3b5599b056_key -iv $encrypted_9f3b5599b056_iv -in service-account.json.enc -out service-account.json -d
+   # 1. Install Google Cloud SDK (i.e. a CLI).
+   #
+   # This will install all the core command line tools necessary for working with
+   # the Google Cloud Platform.
+   - curl https://sdk.cloud.google.com | bash > /dev/null;
+
+   # This is going to look at the default install directory of Google Cloud SDK which is again
+   # by default at ~/google-cloud-sdk Google Cloud SDK , and it is going to source the file
+   # path.bash.inc
+   # Essentially that just means that there is some configuration that is going to modify our shell inside
+   # of Travis CI inside this file (i.e. "path.bash.inc" file), and we're going to apply that additional
+   # configuration through the source command.
+   #
+   # The "source" is a shell built-in command which is used to read and execute the content of a file
+   # (generally set of commands), passed as an argument in the current shell script.
+   - source $HOME/google-cloud-sdk/path.bash.inc
+
+   # This is going to download and install the kubectl command line tool inside of our Travis environment.
+   # We're going to eventually use this kubectl to apply all those different configuration files,
+   # and some of the other Imperative commands we have to run to set our Images on each Deployment.
+   - gcloud components update kubectl
+
+   #
+   # 2. Configure the SDK with our Google Cloud auth info.
+   # So, in order to tell Google Cloud SDK who we are and give it access to our account, we have to activate
+   # a service account and then provide a set of credentials inside of a file that we are calling service-accounts.json .
+   # Phrased differently, we essentially authorize the Google Cloud SDK with some service account and
+   # the credentials for that are going to be placed inside of this service-account.json file .
+   - gcloud auth activate-service-account --key-file service-account.json
+
+   # 3. Login to Docker CLI.
+
+
+# Travis CLI requires Ruby to be installed locally. 
+# Let's get a Docker Image that has Ruby pre-installed, then 
+# we can install travis CLI in there. 
+docker run -it -v $(pwd):/app ruby:2.4 sh
+gem install travis
+
+
+
+
+# 4. Build the 'test' version of multi-client.
+
+# 5. Run tests.
+
+# 6. If tests are successful, run a script to deploy newest images.
+
+# 7. Build all our images, tag each one, push each to Docker Hub.
+
+# 8. Apply all configs in the 'k8s' folder.
+
+# 9. Imperatively set latest images on each deployment.
+
