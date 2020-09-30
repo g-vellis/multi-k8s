@@ -28,8 +28,8 @@ kubectl apply -f k8s
 #                 |          |                 |
 #                 |          |                 |      And we tell server container,
 #                 |          |                 |      to use the Image: { my Docker ID } / multi-server
-kubectl set image deployment/server-deployment server=gvellis/multi-server:$SHA
-kubectl set image deployment/client-deployment client=gvellis/multi-client:$SHA
+kubectl set image deployments/server-deployment server=gvellis/multi-server:$SHA
+kubectl set image deployments/client-deployment client=gvellis/multi-client:$SHA
 #                                              The worker Container needs to use the Image: "gvellis/multi-worker:$SHA"
 #                                              |
-kubectl set image deployment/worker-deployment worker=gvellis/multi-worker:$SHA
+kubectl set image deployments/worker-deployment worker=gvellis/multi-worker:$SHA
