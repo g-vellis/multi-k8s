@@ -20,7 +20,7 @@ env:
    global:
       # git rev-parse HEAD   returns the unique ID of the HEAD commit.
       # SHA is an environment variable holding the unique ID of the HEAD commit.
-      - SHA= $(git rev-parse HEAD)
+      - SHA=$(git rev-parse HEAD)
       # This is going to configure Google Cloud CLI and make sure that it does not
       # try to display any prompts that require user input.
       - CLOUDSDK_CORE_DISABLE_PROMPTS=1
